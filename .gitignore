@@ -1,0 +1,18 @@
+# .cursor 디렉토리 (비밀 포함 파일 방지)
+.cursor/
+
+# Python 가상 환경
+venv/
+.env/
+
+# macOS 시스템 파일
+.DS_Store
+
+# IDE 설정 파일
+*.code-workspace
+.idea/
+
+# 로그 및 캐시
+*.log
+__pycache__/
+*.pyc

@@ -1,0 +1,397 @@
+# LegalEditor 데이터베이스 설계
+
+## 1. 개요
+LegalEditor의 데이터베이스 설계는 Supabase PostgreSQL을 기반으로 하며, 하이브리드 접근 방식을 채택합니다. 간단한 CRUD 작업은 Supabase Edge Function(Deno)으로 처리하고, 복잡한 RAG 로직과 AI 처리는 별도의 Python(FastAPI) 서버로 처리합니다. Supabase의 Authentication, Storage, Realtime 기능을 통합하여 사용자 관리, 파일 저장, 실시간 업데이트를 지원합니다.
+
+목표: 서버리스와 전용 서버를 결합한 효율적인 법률 문서 생성 및 프로젝트 분석.
+기술 스택:
+데이터베이스: Supabase PostgreSQL (pgvector 포함).
+Edge Function: Deno (CRUD).
+Python 서버: FastAPI (RAG, AI 처리).[별도의 RagStructure.md 파일에 기재]
+Supabase Client: @supabase/supabase-js.
+
+## 2. 데이터베이스 설계 (Supabase PostgreSQL)
+데이터베이스 설계는 이전과 동일하며, Supabase의 기능을 최대한 활용합니다.
+
+### 2.1. Supabase 기본 테이블 활용
+- **auth.users:**
+  - `id`: UUID (Primary Key).
+  - `email`: String.
+  - `created_at`: Timestamp.
+  - `last_sign_in_at`: Timestamp.
+  - `provider`: String.
+  - `email_confirmed_at`: Timestamp.
+- **UserProfiles:**
+  - `user_id`: UUID (Primary Key, REFERENCES auth.users(id)).
+  - `title`: TEXT.
+  - `avatar_url`: TEXT (Supabase Storage 경로).
+  - `role`: TEXT CHECK (role IN ('owner', 'admin', 'editor', 'commentator', 'viewer')).
+  - `updated_at`: TIMESTAMP DEFAULT NOW().
+- **Projects 테이블**:
+  - `id`: UUID (Primary Key).
+  - `title`: String (프로젝트 이름, 예: "보니타가 상가분양 손해배상 소송").
+  - `description`: Text (프로젝트 설명).
+  - `created_at`: Timestamp (생성 날짜).
+  - `updated_at`: Timestamp (수정 날짜).
+  - `created_by`: UUID (Foreign Key, Users.id).
+  - `icon`: String (프로젝트 아이콘).
+  - `status`: Enum (active, archived).
+- **Users 테이블**:
+  - `id`: UUID (Primary Key).
+  - `email`: String (사용자 이메일).
+  - `title`: String (사용자 이름).
+  - `avatar_url`: String (프로필 이미지 URL).
+  - `role`: Enum (owner, admin, editor, commentator, viewer).
+  - `created_at`: Timestamp (가입 날짜).
+  - `updated_at`: Timestamp (정보 업데이트 날짜).
+  - `last_login_at`: Timestamp (마지막 로그인 시간).
+  - `auth_provider`: Enum (email, google, kakao).
+  - `email_verified`: Boolean (이메일 인증 여부).
+  - `password_hash`: String (비밀번호 해시, 인증 제공자가 email인 경우).
+  - `terms_of_service_agreed`: Boolean (서비스 이용약관 동의 여부).
+  - `terms_of_service_agreed_at`: Timestamp (서비스 이용약관 동의 시간).
+  - `privacy_policy_agreed`: Boolean (개인정보보호정책 동의 여부).
+  - `privacy_policy_agreed_at`: Timestamp (개인정보보호정책 동의 시간).
+  - `personal_info_consent_agreed`: Boolean (개인정보제공동의 동의 여부).
+  - `personal_info_consent_agreed_at`: Timestamp (개인정보제공동의 동의 시간).
+  - `marketing_consent`: Boolean (마케팅 정보 수신 동의 여부).
+  - `marketing_consent_at`: Timestamp (마케팅 정보 수신 동의 시간).
+  - `tutorial_completed`: Boolean (온보딩 튜토리얼 완료 여부, 기본값 false).
+  - `tutorial_completed_at`: Timestamp (튜토리얼 완료 시간).
+  - `tutorial_progress`: JSON (진행 중인 튜토리얼 단계 정보, 중단 지점 저장용).
+  - `do_not_show_tutorial`: Boolean (튜토리얼 다시 보지 않기 여부, 기본값 false).
+- **ProjectMembers 테이블**:
+  - `id`: UUID (Primary Key).
+  - `project_id`: UUID (Foreign Key, Projects.id).
+  - `user_id`: UUID (Foreign Key, Users.id).
+  - `role`: Enum (owner, admin, editor, commentator, viewer).
+  - `joined_at`: Timestamp (참여 시작 날짜).
+  - `invited_by`: UUID (Foreign Key, Users.id).
+  - `status`: Enum (accepted, pending).
+  - `is_paid_user`: Boolean (유료 플랜 사용자 여부).
+- **Folders 테이블**:
+  - `id`: UUID (Primary Key).
+  - `project_id`: UUID (Foreign Key, Projects.id).
+  - `parent_id`: UUID (Foreign Key, Folders.id, null인 경우 최상위 폴더).
+  - `title`: String (폴더 이름).
+  - `type`: Enum (document, evidence).
+  - `created_at`: Timestamp (생성 날짜).
+  - `created_by`: UUID (Foreign Key, Users.id).
+  - `updated_at`: Timestamp (수정 날짜).
+- **Documents 테이블**:
+  - `id`: UUID (Primary Key).
+  - `project_id`: UUID (Foreign Key, Projects.id).
+  - `folder_id`: UUID (Foreign Key, Folders.id).
+  - `title`: String (문서 제목).
+  - `content`: JSON (Plate.js 편집기 내용, 리치 텍스트 형식).
+  - `created_at`: Timestamp (생성 날짜).
+  - `created_by`: UUID (Foreign Key, Users.id).
+  - `updated_at`: Timestamp (수정 날짜).
+  - `updated_by`: UUID (Foreign Key, Users.id).
+  - `version`: Integer (문서 버전 번호).
+  - `status`: Enum (draft, published).
+  - `tags`: Array (태그 목록).
+- **DocumentVersions 테이블**:
+  - `id`: UUID (Primary Key).
+  - `document_id`: UUID (Foreign Key, Documents.id).
+  - `content`: JSON (버전 시점의 문서 내용).
+  - `version`: Integer (버전 번호).
+  - `version_type`: Enum (major, minor, 버전 유형).
+  - `created_at`: Timestamp (버전 생성 날짜).
+  - `created_by`: UUID (Foreign Key, Users.id).
+  - `change_description`: String (변경 사항 설명).
+  - `is_current`: Boolean (현재 버전 여부, 기본값 false).
+  - `parent_version_id`: UUID (Foreign Key, DocumentVersions.id, 이전 버전 ID).
+- **DocumentComments 테이블**:
+  - `id`: UUID (Primary Key).
+  - `document_id`: UUID (Foreign Key, Documents.id).
+  - `user_id`: UUID (Foreign Key, Users.id).
+  - `content`: Text (댓글 내용).
+  - `selection_path`: JSON (선택된 텍스트 위치 정보).
+  - `created_at`: Timestamp (생성 날짜).
+  - `updated_at`: Timestamp (수정 날짜).
+  - `parent_comment_id`: UUID (Foreign Key, DocumentComments.id, 대댓글인 경우).
+  - `status`: Enum (active, resolved, deleted).
+- **Evidence 테이블**:
+  - `id`: UUID (Primary Key).
+  - `project_id`: UUID (Foreign Key, Projects.id).
+  - `folder_id`: UUID (Foreign Key, Folders.id).
+  - `title`: String (파일 이름).
+  - `original_filename`: String (원본 파일명).
+  - `type`: Enum (law, precedent, considerable_document, judgement_etc_document, evidence, claiming_document).
+  - `mime_type`: String (파일 MIME 타입).
+  - `file_path`: String (Supabase Storage 경로).
+  - `file_size`: Integer (파일 크기, 바이트).
+  - `page_count`: Integer (페이지 수, PDF/문서인 경우).
+  - `duration`: Float (음성/영상 길이, 초 단위, 미디어인 경우).
+  - `ocr_status`: Enum (not_started, in_progress, completed, failed).
+  - `ocr_completed_at`: Timestamp (OCR 완료 시간).
+  - `content_text`: Text (추출된 텍스트 내용, 검색용).
+  - `embedding_status`: Enum (not_started, in_progress, completed, failed).
+  - `uploaded_at`: Timestamp (업로드 날짜).
+  - `uploaded_by`: UUID (Foreign Key, Users.id).
+  - `tags`: Array (태그 목록).
+  - `auto_tags_generated`: Boolean (자동 태그 생성 여부, 기본값 false).
+- **EvidenceAnnotations 테이블**:
+  - `id`: UUID (Primary Key).
+  - `evidence_id`: UUID (Foreign Key, Evidence.id).
+  - `user_id`: UUID (Foreign Key, Users.id).
+  - `content`: Text (주석 내용, null 허용 - 하이라이트만 적용 시 null).
+  - `position_data`: JSON (주석 위치 정보: 페이지, 좌표, 영역 등).
+  - `type`: Enum (highlight_only, highlight, text, drawing, sticky_note).
+  - `color`: String (주석 색상, 하이라이트/스티커 노트 등에 사용).
+  - `created_at`: Timestamp (생성 날짜).
+  - `updated_at`: Timestamp (수정 날짜).
+- **ChatMessages 테이블**:
+  - `id`: UUID (Primary Key).
+  - `project_id`: UUID (Foreign Key, Projects.id).
+  - `sender_id`: UUID (Foreign Key, Users.id).
+  - `message`: Text (메시지 내용).
+  - `timestamp`: Timestamp (전송 시간).
+  - `has_attachments`: Boolean (첨부 파일 존재 여부).
+  - `edited`: Boolean (편집 여부).
+  - `edited_at`: Timestamp (편집 시간).
+  - `is_ai_message`: Boolean (AI 메시지 여부).
+- **ChatAttachments 테이블**:
+  - `id`: UUID (Primary Key).
+  - `message_id`: UUID (Foreign Key, ChatMessages.id).
+  - `evidence_id`: UUID (Foreign Key, Evidence.id, 증거 파일인 경우).
+  - `document_id`: UUID (Foreign Key, Documents.id, 문서인 경우).
+  - `law_reference_id`: UUID (Foreign Key, ProjectLawReferences.id, 법령 참조인 경우).
+  - `precedent_reference_id`: UUID (Foreign Key, ProjectPrecedentReferences.id, 판례 참조인 경우).
+  - `type`: Enum (evidence, document, law, precedent).
+- **Goals 테이블**:
+  - `id`: UUID (Primary Key).
+  - `project_id`: UUID (Foreign Key, Projects.id).
+  - `title`: String (목표 이름).
+  - `description`: Text (목표 설명).
+  - `status`: Enum (in_progress, completed, delayed).
+  - `created_at`: Timestamp (생성 날짜).
+  - `created_by`: UUID (Foreign Key, Users.id).
+  - `updated_at`: Timestamp (수정 날짜).
+  - `priority`: Integer (우선순위).
+  - `is_ai_recommended`: Boolean (AI 추천 여부).
+- **Claims 테이블**:
+  - `id`: UUID (Primary Key).
+  - `project_id`: UUID (Foreign Key, Projects.id).
+  - `goal_id`: UUID (Foreign Key, Goals.id).
+  - `title`: String (주장 이름).
+  - `description`: Text (주장 설명).
+  - `created_at`: Timestamp (생성 날짜).
+  - `created_by`: UUID (Foreign Key, Users.id).
+  - `updated_at`: Timestamp (수정 날짜).
+  - `priority`: Integer (우선순위).
+  - `status`: Enum (draft, finalized).
+  - `is_ai_recommended`: Boolean (AI 추천 여부).
+  - `confidence_score`: Float (신뢰도 점수, 0.0~1.0).
+- **ClaimEvidenceSupport 테이블**:
+  - `id`: UUID (Primary Key).
+  - `claim_id`: UUID (Foreign Key, Claims.id).
+  - `evidence_id`: UUID (Foreign Key, Evidence.id).
+  - `description`: Text (증거 연관성 설명).
+  - `added_at`: Timestamp (추가 시간).
+  - `added_by`: UUID (Foreign Key, Users.id).
+  - `is_ai_recommended`: Boolean (AI 추천 여부).
+  - `relevance_score`: Float (관련성 점수, 0.0~1.0).
+- **ClaimEvidenceRecommendations 테이블**:
+  - `id`: UUID (Primary Key).
+  - `claim_id`: UUID (Foreign Key, Claims.id).
+  - `evidence_id`: UUID (Foreign Key, Evidence.id, null 가능).
+  - `law_reference_id`: UUID (Foreign Key, ProjectLawReferences.id, null 가능).
+  - `precedent_reference_id`: UUID (Foreign Key, ProjectPrecedentReferences.id, null 가능).
+  - `type`: Enum (evidence, law, precedent).
+  - `relevance_score`: Float (관련성 점수, 0.0~1.0).
+  - `relevance_reason`: Text (관련성 이유 설명).
+  - `application_strategy`: Text (법령/판례 적용 전략, 법령/판례인 경우).
+  - `recommended_at`: Timestamp (추천 시간).
+  - `recommended_by`: UUID (Foreign Key, Users.id).
+  - `status`: Enum (pending, accepted, rejected).
+  - `relevant_parts`: JSON (관련 부분 정보, 위치, 내용 등).
+- **RecommendationFeedback 테이블**:
+  - `id`: UUID (Primary Key).
+  - `recommendation_id`: UUID (Foreign Key, ClaimEvidenceRecommendations.id).
+  - `user_id`: UUID (Foreign Key, Users.id).
+  - `feedback_type`: Enum (helpful, not_helpful, partially_helpful).
+  - `feedback_comment`: Text (피드백 내용).
+  - `created_at`: Timestamp (피드백 제공 시간).
+- **Laws 테이블**:
+  - `id`: UUID (Primary Key).
+  - `law_code`: String (법령 코드, 국가법령정보센터 API 기준).
+  - `title`: String (법령 제목).
+  - `content`: Text (법령 내용).
+  - `last_updated`: Timestamp (최종 업데이트 시간).
+  - `effective_date`: Date (시행일).
+  - `promulgation_date`: Date (공포일).
+  - `law_type`: String (법령 종류, 예: 법률, 시행령, 시행규칙).
+  - `ministry`: String (소관부처).
+- **LawClauses 테이블**:
+  - `id`: UUID (Primary Key).
+  - `law_id`: UUID (Foreign Key, Laws.id).
+  - `article_number`: String (조항 번호).
+  - `article_title`: String (조항 제목).
+  - `content`: Text (조항 내용).
+  - `embedding`: Vector (조항 내용의 벡터 임베딩, RAG 검색용).
+  - `hierarchy_level`: Integer (계층 구조 레벨, 1:장, 2:절, 3:조 등).
+  - `parent_id`: UUID (Foreign Key, LawClauses.id, 상위 계층).
+- **Precedents 테이블**:
+  - `id`: UUID (Primary Key).
+  - `case_number`: String (사건 번호).
+  - `court`: String (법원).
+  - `title`: String (판례 제목).
+  - `summary`: Text (판례 요지).
+  - `content`: Text (판례 전문).
+  - `decision_date`: Date (판결 날짜).
+  - `last_updated`: Timestamp (최종 업데이트 시간).
+  - `case_type`: String (사건 유형, 예: 민사, 형사, 행정 등).
+  - `decision_type`: String (판결 유형, 예: 판결, 결정, 명령 등).
+  - `parties`: JSON (당사자 정보, 원고/피고 등).
+- **PrecedentParagraphs 테이블**:
+  - `id`: UUID (Primary Key).
+  - `precedent_id`: UUID (Foreign Key, Precedents.id).
+  - `paragraph_index`: Integer (문단 인덱스).
+  - `content`: Text (문단 내용).
+  - `embedding`: Vector (문단 내용의 벡터 임베딩, RAG 검색용).
+  - `section_type`: String (섹션 유형, 예: 사실관계, 판단요지, 결론 등).
+- **ProjectLawReferences 테이블**:
+  - `id`: UUID (Primary Key).
+  - `project_id`: UUID (Foreign Key, Projects.id).
+  - `law_id`: UUID (Foreign Key, Laws.id).
+  - `added_at`: Timestamp (추가 시간).
+  - `added_by`: UUID (Foreign Key, Users.id).
+  - `is_ai_recommended`: Boolean (AI 추천 여부).
+  - `notes`: Text (참고 노트).
+- **ProjectLawClauseReferences 테이블**:
+  - `id`: UUID (Primary Key).
+  - `project_law_reference_id`: UUID (Foreign Key, ProjectLawReferences.id).
+  - `law_clause_id`: UUID (Foreign Key, LawClauses.id).
+  - `relevance_score`: Float (관련성 점수, 0.0~1.0).
+  - `added_at`: Timestamp (추가 시간).
+  - `notes`: Text (참고 노트).
+- **ProjectPrecedentReferences 테이블**:
+  - `id`: UUID (Primary Key).
+  - `project_id`: UUID (Foreign Key, Projects.id).
+  - `precedent_id`: UUID (Foreign Key, Precedents.id).
+  - `added_at`: Timestamp (추가 시간).
+  - `added_by`: UUID (Foreign Key, Users.id).
+  - `is_ai_recommended`: Boolean (AI 추천 여부).
+  - `notes`: Text (참고 노트).
+- **ProjectPrecedentParagraphReferences 테이블**:
+  - `id`: UUID (Primary Key).
+  - `project_precedent_reference_id`: UUID (Foreign Key, ProjectPrecedentReferences.id).
+  - `precedent_paragraph_id`: UUID (Foreign Key, PrecedentParagraphs.id).
+  - `relevance_score`: Float (관련성 점수, 0.0~1.0).
+  - `added_at`: Timestamp (추가 시간).
+  - `notes`: Text (참고 노트).
+- **DocumentCitations 테이블**:
+  - `id`: UUID (Primary Key).
+  - `document_id`: UUID (Foreign Key, Documents.id).
+  - `evidence_id`: UUID (Foreign Key, Evidence.id, 증거 인용인 경우).
+  - `law_clause_id`: UUID (Foreign Key, LawClauses.id, 법령 인용인 경우).
+  - `precedent_paragraph_id`: UUID (Foreign Key, PrecedentParagraphs.id, 판례 인용인 경우).
+  - `citation_type`: Enum (evidence, law, precedent).
+  - `position_path`: JSON (인용 위치).
+  - `created_at`: Timestamp (생성 날짜).
+  - `created_by`: UUID (Foreign Key, Users.id).
+- **Notifications 테이블**:
+  - `id`: UUID (Primary Key).
+  - `user_id`: UUID (Foreign Key, Users.id).
+  - `title`: String (알림 제목).
+  - `content`: Text (알림 내용).
+  - `type`: Enum (project_invite, comment, edit, upload, ai_recommendation, etc).
+  - `read`: Boolean (읽음 여부).
+  - `created_at`: Timestamp (생성 날짜).
+  - `project_id`: UUID (Foreign Key, Projects.id, 관련 프로젝트).
+  - `source_id`: UUID (알림 소스 ID, 테이블에 따라 다름).
+  - `source_type`: String (알림 소스 타입, 예: document, evidence, comment).
+  - `action_url`: String (알림 클릭 시 이동 URL).
+- **AIAgentInteractions 테이블**:
+  - `id`: UUID (Primary Key).
+  - `user_id`: UUID (Foreign Key, Users.id).
+  - `project_id`: UUID (Foreign Key, Projects.id).
+  - `mode`: Enum (write, ask).
+  - `query`: Text (사용자 질의/지시).
+  - `response`: Text (AI 응답).
+  - `context_data`: JSON (컨텍스트 데이터: 선택 문서, 증거 등).
+  - `created_at`: Timestamp (생성 날짜).
+  - `completed_at`: Timestamp (처리 완료 시간).
+  - `status`: Enum (pending, processing, completed, error).
+  - `tokens_used`: Integer (사용된 토큰 수).
+  - `source_tab`: Enum (document_editor, project_analysis, evidence_viewer, chat).
+- **UpstageOcrResult 테이블**:
+  - `id`: UUID (Primary Key).
+  - `evidence_id`: UUID (Foreign Key, Evidence.id).
+  - `page_number`: Integer (페이지 번호).
+  - `raw_text`: Text (페이지의 원본 OCR 텍스트).
+  - `confidence_score`: Float (OCR 인식 신뢰도, 0.0~1.0).
+  - `bounding_boxes`: JSON (텍스트 인식 영역 좌표 정보).
+  - `processed_at`: Timestamp (처리 시간).
+  - `processing_time_ms`: Integer (처리 소요 시간, 밀리초).
+  - `status`: Enum (success, partial, failed).
+  - `error_message`: Text (오류 메시지, 실패 시).
+- **OcrParagraphs 테이블**:
+  - `id`: UUID (Primary Key).
+  - `evidence_id`: UUID (Foreign Key, Evidence.id).
+  - `ocr_result_id`: UUID (Foreign Key, UpstageOcrResult.id).
+  - `paragraph_index`: Integer (문단 인덱스).
+  - `text`: Text (문단 텍스트).
+  - `start_position`: Integer (원본 텍스트 내 시작 위치).
+  - `end_position`: Integer (원본 텍스트 내 종료 위치).
+  - `embedding_vector`: Vector (문단 벡터 임베딩, RAG 검색용).
+  - `created_at`: Timestamp (생성 시간).
+- **OcrToc 테이블**:
+  - `id`: UUID (Primary Key).
+  - `evidence_id`: UUID (Foreign Key, Evidence.id).
+  - `title`: Text (목차 제목).
+  - `level`: Integer (목차 계층 레벨).
+  - `page_number`: Integer (페이지 번호).
+  - `parent_id`: UUID (Foreign Key, OcrToc.id, 상위 목차).
+  - `sequence`: Integer (목차 순서).
+  - `created_at`: Timestamp (생성 시간).
+- **OcrProcessingQueue 테이블**:
+  - `id`: UUID (Primary Key).
+  - `evidence_id`: UUID (Foreign Key, Evidence.id).
+  - `status`: Enum (pending, processing, completed, failed).
+  - `priority`: Integer (처리 우선순위).
+  - `created_at`: Timestamp (대기열 등록 시간).
+  - `started_at`: Timestamp (처리 시작 시간).
+  - `completed_at`: Timestamp (처리 완료 시간).
+  - `error_details`: Text (오류 상세 정보, 실패 시).
+  - `retry_count`: Integer (재시도 횟수).
+  - `last_retry_at`: Timestamp (마지막 재시도 시간).
+- **LawDocuments 테이블**:
+  - `id`: UUID (Primary Key).
+  - `evidence_id`: UUID (Foreign Key, Evidence.id).
+  - `law_code`: String (법령 코드).
+  - `effective_date`: Date (시행일).
+  - `is_current`: Boolean (현행법령 여부).
+  - `law_type`: String (법령 종류).
+  - `ministry`: String (소관부처).
+- **PrecedentDocuments 테이블**:
+  - `id`: UUID (Primary Key).
+  - `evidence_id`: UUID (Foreign Key, Evidence.id).
+  - `case_number`: String (사건 번호).
+  - `court`: String (법원).
+  - `decision_date`: Date (판결 날짜).
+  - `case_type`: String (사건 유형).
+  - `decision_type`: String (판결 유형).
+- **ConsiderableDocuments 테이블**:
+  - `id`: UUID (Primary Key).
+  - `evidence_id`: UUID (Foreign Key, Evidence.id).
+  - `document_type`: String (자료 유형).
+  - `source`: String (출처).
+  - `publication_date`: Date (발행일).
+  - `author`: String (작성자/기관).
+- **JudgementEtcDocuments 테이블**:
+  - `id`: UUID (Primary Key).
+  - `evidence_id`: UUID (Foreign Key, Evidence.id).
+  - `issuing_authority`: String (발행 기관).
+  - `document_type`: String (문서 유형).
+  - `issue_date`: Date (발행일).
+  - `case_reference`: String (사건 참조 번호).
+- **ClaimingDocuments 테이블**:
+  - `id`: UUID (Primary Key).
+  - `evidence_id`: UUID (Foreign Key, Evidence.id).
+  - `document_type`: String (문서 유형).
+  - `submission_date`: Date (제출일).
+  - `submitting_party`: String (제출 당사자).
+  - `receiving_party`: String (수신 당사자). 
