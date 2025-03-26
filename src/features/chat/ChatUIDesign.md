@@ -21,7 +21,7 @@
 - **중앙: 채팅 메시지 목록** (`ChatMessagesListComponent.tsx`):
   - 채팅 메시지 목록 표시 (발신자 이름, 메시지, 타임스탬프) (`ChatMessageItemComponent.tsx`).
     - 메시지 발신자 이름 색상으로 구분 (본인: 파란색, 타인: 회색) (`MessageSenderNameComponent.tsx`).
-    - 증거자료 인용 메시지: `[인용: 파일명]` 형식으로 표시, 클릭 시 우측 Sidebar 또는 모달로 원본 표시 (`EvidenceCitationInChatDisplayComponent.tsx`).
+    - 증거자료 인용 메시지: `[@ 파일명]` 형식으로 표시, 클릭 시 우측 Sidebar 또는 모달로 원본 표시 (`EvidenceCitationInChatDisplayComponent.tsx`).
     - 메시지에 마우스 우클릭 시 팝업 메뉴 표시 (`MessageContextMenuComponent.tsx`):
       - "AI Agent로 보내기" 버튼 (`SendMessageToAIAgentButtonComponent.tsx`):
         - 메시지 내용을 AI Agent로 전송하여 추가 분석 요청.

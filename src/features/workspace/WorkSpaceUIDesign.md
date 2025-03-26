@@ -2,7 +2,7 @@
 
 본 컴포넌트의 UI/UX는 [GlobalUIDesign.md](../../ui_structure/GlobalUIDesign.md)에서 정의된 공통 디자인 시스템을 따릅니다.
 
-## 1. 워크스페이스 레이아웃
+## 1. 워크스페이스스크린
 
 ### 1.1 탭 네비게이션 영역
 ```

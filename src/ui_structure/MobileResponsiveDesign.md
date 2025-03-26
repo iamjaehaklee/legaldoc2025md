@@ -6,7 +6,7 @@ LegalEditor의 모바일 반응형 설계는 다양한 디바이스(스마트폰
 ## 2. 레이아웃 조정
 - **프로젝트 네비게이션 바** (`ProjectNavigationBarComponent.tsx`):
   - 프로젝트 선택 드롭다운: 햄버거 메뉴로 통합 (아이콘: `☰`) (`ProjectSelectionHamburgerMenuComponent.tsx`).
-  - 주요 탭: 아이콘만 표시 (예: 워크스페이스탭 → 📝, 프로젝트분석탭 → 📊, 채팅탭 → 💬) (`MainNavigationTabsMobileViewComponent.tsx`).
+  - 메인 내비게이션 탭: 아이콘만 표시 (예: 워크스페이스탭 → 📝, 프로젝트분석탭 → 📊, 채팅탭 → 💬) (`MainNavigationTabsMobileViewComponent.tsx`).
   - 참여자 관리: 하단 플로팅 버튼으로 표시 (아이콘: `👥`) (`MemberManagementMobileButtonComponent.tsx`).
   - 사용자 프로필: 햄버거 메뉴 내부로 이동 (`UserProfileMobileMenuComponent.tsx`).
   - 검색 필드: 상단 고정, 축소 가능한 형태로 표시 (`GlobalSearchMobileFieldComponent.tsx`).

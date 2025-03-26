@@ -194,7 +194,7 @@ FileViewerTabViewComponent
             - 선택한 텍스트 블록 표시 (`FileSelectedTextDisplayComponent.tsx`).
             - "붙여넣기" 버튼 (아이콘: `📋`) (`FilePasteToDocumentActionButtonComponent.tsx`):
               - 선택한 문서의 현재 커서 위치에 텍스트 붙여넣기.
-              - 붙여넣은 텍스트는 파일자료 출처 정보와 함께 삽입 (형식: `[인용: 파일제목, 페이지/위치]`) (`FilePasteWithCitationComponent.tsx`).
+              - 붙여넣은 텍스트는 파일자료 출처 정보와 함께 삽입 (형식: `[@ 파일제목, 페이지/위치]`) (`FilePasteWithCitationComponent.tsx`).
             - "취소" 버튼 (아이콘: `❌`) (`FileCancelPasteActionButtonComponent.tsx`).
   - **댓글 표시** (`FileCommentsDisplayComponent.tsx`):
     - 선택한 텍스트 블록 옆에 말풍선 아이콘 표시 (아이콘: `💬`) (`FileCommentIndicatorIconComponent.tsx`).
@@ -345,7 +345,7 @@ FileViewerTabViewComponent
             - 페이지 번호 직접 입력 옵션 (`FilePageNumberInputComponent.tsx`).
           - '인용 삽입' 버튼 (아이콘: `✔️`) (`FileInsertCitationButtonComponent.tsx`):
             - 선택한 형식으로 인용 구문 생성 및 삽입 (`FileCitationFormatGeneratorComponent.tsx`).
-            - 형식: `[인용: 파일명-p.페이지번호-하이라이트ID/주석ID]` (`FileCitationFormatComponent.tsx`).
+            - 형식: `[@ 파일명-p.페이지번호-하이라이트ID/주석ID]` (`FileCitationFormatComponent.tsx`).
   
   - **인용 표시 및 상호작용** (`FileCitationDisplayInteractionComponent.tsx`):
     - 인용된 텍스트는 특별한 스타일로 표시 (배경색, 아이콘 등) (`FileCitedTextStyleComponent.tsx`).

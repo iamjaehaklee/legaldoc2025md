@@ -152,10 +152,10 @@ AIAgentSystem/
   - 오류 알림 및 재시도 (`AIAgentErrorNotificationComponent.tsx`)
   - 피드백 수집 및 모델 개선 (`AIAgentFeedbackCollectionComponent.tsx`)
 - **탭별 특화 동작**:
-  - 문서작성탭: 문서 편집 관련 AI 지원 (`DocumentEditorAIAgentHandlerComponent.tsx`)
-  - 프로젝트분석탭: 목표/주장 분석 및 경고 (`ProjectAnalysisAIAgentHandlerComponent.tsx`)
-  - 증거뷰어탭: 증거자료 검색 및 주석 지원 (`EvidenceViewerAIAgentHandlerComponent.tsx`)
-  - 채팅탭: 협업 컨텍스트 제공 (`ChatAIAgentHandlerComponent.tsx`)
+  - 워크스페이스스크린 중 문서편집기스크린: 문서 편집 관련 AI 지원 (`DocumentEditorAIAgentHandlerComponent.tsx`)
+  - 워크스페이스스크린 중 파일뷰어스크린: 파일 뷰어 관련 AI 지원 (`.tsx`)
+  - 프로젝트분석스크린: 목표/주장 분석 및 경고 (`ProjectAnalysisAIAgentHandlerComponent.tsx`)
+  - 채팅스크린: 협업 컨텍스트 제공 (`ChatAIAgentHandlerComponent.tsx`)
 
 ### 5.2 인라인 통합
 - 편집기 내 실시간 제안
